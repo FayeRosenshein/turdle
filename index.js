@@ -1,4 +1,5 @@
 // Global Variables
+var words
 var winningWord = '';
 var currentRow = 1;
 var guess = '';
@@ -16,19 +17,23 @@ var gameBoard = document.querySelector('#game-section');
 var letterKey = document.querySelector('#key-section');
 var rules = document.querySelector('#rules-section');
 var stats = document.querySelector('#stats-section');
-var gameOverBox = document.querySelector('#game-over-section');
+var winningGameOverBox = document.querySelector('#winning-game-over-section');
+var losingGameOverBox = document.querySelector('#losing-game-over-section');
 var gameOverGuessCount = document.querySelector('#game-over-guesses-count');
 var gameOverGuessGrammar = document.querySelector('#game-over-guesses-plural');
+var gamesPlural = document.querySelector('#games-plural')
 
 // Event Listeners
-window.addEventListener('load', setGame);
+window.addEventListener('load', function () {
+  fetchWords()
+});
 
 for (var i = 0; i < inputs.length; i++) {
-  inputs[i].addEventListener('keyup', function() { moveToNextInput(event) });
+  inputs[i].addEventListener('keyup', function () { moveToNextInput(event) });
 }
 
 for (var i = 0; i < keyLetters.length; i++) {
-  keyLetters[i].addEventListener('click', function() { clickLetter(event) });
+  keyLetters[i].addEventListener('click', function () { clickLetter(event) });
 }
 
 guessButton.addEventListener('click', submitGuess);
@@ -42,31 +47,39 @@ viewStatsButton.addEventListener('click', viewStats);
 // Functions
 function setGame() {
   currentRow = 1;
-  winningWord = getRandomWord();
+  winningWord = getRandomWord(words);
   updateInputPermissions();
 }
 
+function fetchWords() {
+  fetch('http://localhost:3001/api/v1/words')
+    .then(respones => respones.json())
+    .then(data => {
+      words = data
+      setGame()
+      return words
+    })
+}
 function getRandomWord() {
   var randomIndex = Math.floor(Math.random() * 2500);
   return words[randomIndex];
 }
 
 function updateInputPermissions() {
-  for(var i = 0; i < inputs.length; i++) {
-    if(!inputs[i].id.includes(`-${currentRow}-`)) {
-      inputs[i].disabled = true;
+  inputs.forEach(input => {
+    if (!input.id.includes(`-${currentRow}-`)) {
+      input.disabled = true;
     } else {
-      inputs[i].disabled = false;
+      input.disabled = false;
     }
-  }
-
+  })
   inputs[0].focus();
 }
 
 function moveToNextInput(e) {
   var key = e.keyCode || e.charCode;
 
-  if( key !== 8 && key !== 46 ) {
+  if (key !== 8 && key !== 46) {
     var indexOfNext = parseInt(e.target.id.split('-')[2]) + 1;
     inputs[indexOfNext].focus();
   }
@@ -77,7 +90,7 @@ function clickLetter(e) {
   var activeIndex = null;
 
   for (var i = 0; i < inputs.length; i++) {
-    if(inputs[i].id.includes(`-${currentRow}-`) && !inputs[i].value && !activeInput) {
+    if (inputs[i].id.includes(`-${currentRow}-`) && !inputs[i].value && !activeInput) {
       activeInput = inputs[i];
       activeIndex = i;
     }
@@ -92,41 +105,49 @@ function submitGuess() {
     errorMessage.innerText = '';
     compareGuess();
     if (checkForWin()) {
-      setTimeout(declareWinner, 1000);
-    } else {
+      setTimeout(declareWinner(winningGameOverBox), 1000);
+    }
+    else {
       changeRow();
     }
   } else {
     errorMessage.innerText = 'Not a valid word. Try again!';
   }
+  checkGameCount()
 }
+
 
 function checkIsWord() {
   guess = '';
-
-  for(var i = 0; i < inputs.length; i++) {
-    if(inputs[i].id.includes(`-${currentRow}-`)) {
-      guess += inputs[i].value;
-    }
+inputs.forEach(input => {
+  if (input.id.includes(`-${currentRow}-`)) {
+    guess += input.value
   }
-
+})
   return words.includes(guess);
 }
 
 function compareGuess() {
   var guessLetters = guess.split('');
-
+  var winningWordSplit = winningWord.slipt('')
+  console.log(guessLetters)
+  guessLetters.forEach(letter => {
+    if(winningWord.includes(letter) && winningWordSplit !== letter) {
+      updateBoxColor(letter, 'wrong-location');
+      updateKeyColor(letter, 'wrong-location-key');
+    }
+})
   for (var i = 0; i < guessLetters.length; i++) {
 
     if (winningWord.includes(guessLetters[i]) && winningWord.split('')[i] !== guessLetters[i]) {
       updateBoxColor(i, 'wrong-location');
       updateKeyColor(guessLetters[i], 'wrong-location-key');
-    } else if (winningWord.split('')[i] === guessLetters[i]) {
-      updateBoxColor(i, 'correct-location');
-      updateKeyColor(guessLetters[i], 'correct-location-key');
+    } else if (winningWord.split('') === letter) {
+      updateBoxColor(letter, 'correct-location');
+      updateKeyColor(letter, 'correct-location-key');
     } else {
-      updateBoxColor(i, 'wrong');
-      updateKeyColor(guessLetters[i], 'wrong-key');
+      updateBoxColor(letter, 'wrong');
+      updateKeyColor(letter, 'wrong-key');
     }
   }
 
@@ -136,7 +157,7 @@ function updateBoxColor(letterLocation, className) {
   var row = [];
 
   for (var i = 0; i < inputs.length; i++) {
-    if(inputs[i].id.includes(`-${currentRow}-`)) {
+    if (inputs[i].id.includes(`-${currentRow}-`)) {
       row.push(inputs[i]);
     }
   }
@@ -156,6 +177,12 @@ function updateKeyColor(letter, className) {
   keyLetter.classList.add(className);
 }
 
+function checkGameCount() {
+  if (currentRow > 5) {
+    declareLoser()
+  }
+}
+
 function checkForWin() {
   return guess === winningWord;
 }
@@ -165,16 +192,47 @@ function changeRow() {
   updateInputPermissions();
 }
 
-function declareWinner() {
+function declareWinner(stateOfWin) {
   recordGameStats();
   changeGameOverText();
-  viewGameOverMessage();
+  viewGameOverMessage(stateOfWin);
+  setTimeout(startNewGame, 4000);
+}
+
+function declareLoser() {
+  viewGameOverMessage(losingGameOverBox)
+  recordGameStats();
   setTimeout(startNewGame, 4000);
 }
 
 function recordGameStats() {
-  gamesPlayed.push({ solved: true, guesses: currentRow });
+  if (checkForWin()) {
+    gamesPlayed.push({ solved: true, guesses: currentRow });
+  } else {
+    gamesPlayed.push({ solved: false, guesses: 6 });
+  }
+  gameStats()
 }
+
+function gameStats() {
+  let winningGamesPlayed = gamesPlayed.filter(winningGame => {
+    return winningGame.solved === true
+  })
+
+  // let guessesArray = gamesPlayed.map(winningGame => {
+  //   if (winningGame.solved === true) {
+  //   return winningGame.guesses
+  // }})
+  let averageGuesses = winningGamesPlayed.reduce((acc, playedGames) => 
+    acc + playedGames.guesses, 0
+  )
+  stats.innerHTML = `
+  <h3>GAME STATS</h3>
+  <p class="informational-text">You've played <span id="stats-total-games">${gamesPlayed.length}</span> games.</p>
+  <p class="informational-text">You've guessed the correct word <span id="stats-percent-correct">${winningGamesPlayed.length/gamesPlayed.length*100}</span>% of the time.</p>
+  <p class="informational-text">On average, it takes you <span id="stats-average-guesses">${averageGuesses/winningGamesPlayed.length}</span> guesses to find the correct word.</p>`
+}
+
 
 function changeGameOverText() {
   gameOverGuessCount.innerText = currentRow;
@@ -189,7 +247,8 @@ function startNewGame() {
   clearGameBoard();
   clearKey();
   setGame();
-  viewGame();
+  viewGame(winningGameOverBox);
+  viewGame(losingGameOverBox);
   inputs[0].focus();
 }
 
@@ -218,12 +277,12 @@ function viewRules() {
   viewStatsButton.classList.remove('active');
 }
 
-function viewGame() {
+function viewGame(stateOfWin) {
   letterKey.classList.remove('hidden');
   gameBoard.classList.remove('collapsed');
   rules.classList.add('collapsed');
   stats.classList.add('collapsed');
-  gameOverBox.classList.add('collapsed')
+  stateOfWin.classList.add('collapsed')
   viewGameButton.classList.add('active');
   viewRulesButton.classList.remove('active');
   viewStatsButton.classList.remove('active');
@@ -239,8 +298,8 @@ function viewStats() {
   viewStatsButton.classList.add('active');
 }
 
-function viewGameOverMessage() {
-  gameOverBox.classList.remove('collapsed')
+function viewGameOverMessage(stateOfWin) {
+  stateOfWin.classList.remove('collapsed')
   letterKey.classList.add('hidden');
   gameBoard.classList.add('collapsed');
 }

@@ -165,7 +165,8 @@ nav {
 
 #rules-section,
 #stats-section,
-#game-over-section {
+#winning-game-over-section,
+#losing-game-over-section {
   text-align: center;
 }
 
